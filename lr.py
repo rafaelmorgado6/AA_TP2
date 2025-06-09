@@ -8,8 +8,8 @@ from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 import re
 
 # Recarregar os dados
-fake_path = "Fake2.csv"
-true_path = "True2.csv"
+fake_path = "Data/Fake.csv"
+true_path = "Data/True.csv"
 
 
 
@@ -40,22 +40,19 @@ df = pd.concat([df_fake, df_true], ignore_index=True)
 df = df.drop_duplicates(subset='text').reset_index(drop=True)
 df = df.sample(frac=1, random_state=42).reset_index(drop=True)
 
-df.to_excel("noticias_processadas.xlsx", index=False)
-
 # Usar apenas o corpo da notícia como input
 df['input'] = df['text']
 
 # Split treino/teste
-X_train, X_test, y_train, y_test = train_test_split(
-    df['input'], df['label'], test_size=0.2, stratify=df['label'], random_state=42)
+X_train, X_test, y_train, y_test = train_test_split(df['input'], df['label'], test_size=0.2, stratify=df['label'], random_state=42)
 
 # Vetorização TF-IDF
-vectorizer = TfidfVectorizer(stop_words='english', max_features=10000)
+vectorizer = TfidfVectorizer(stop_words=None, max_features=20000, max_df=0.75, min_df=2, ngram_range=(1,2))
 X_train_vec = vectorizer.fit_transform(X_train)
 X_test_vec = vectorizer.transform(X_test)
 
 # Modelo: Regressão logística
-model = LogisticRegression(max_iter=1000)
+model = LogisticRegression(C = 100, class_weight= "balanced", penalty="l2", solver="liblinear",  max_iter=1000)
 model.fit(X_train_vec, y_train)
 
 # Previsões
