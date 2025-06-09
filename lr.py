@@ -43,27 +43,46 @@ df = df.sample(frac=1, random_state=42).reset_index(drop=True)
 # Usar apenas o corpo da notícia como input
 df['input'] = df['text']
 
-# Split treino/teste
-X_train, X_test, y_train, y_test = train_test_split(df['input'], df['label'], test_size=0.2, stratify=df['label'], random_state=42)
+# Divisão de treino/teste/validação 
+X_train, X_temp, y_train, y_temp = train_test_split(
+    df['input'], df['label'], test_size=0.2, stratify=df['label'], random_state=42
+)
 
+X_val, X_test, y_val, y_test = train_test_split(
+    X_temp, y_temp, test_size=0.5, stratify=y_temp, random_state=42
+)
 # Vetorização TF-IDF
-vectorizer = TfidfVectorizer(stop_words=None, max_features=20000, max_df=0.75, min_df=2, ngram_range=(1,2))
+vectorizer = TfidfVectorizer(
+    stop_words=None, max_features=20000, max_df=0.75, min_df=2, ngram_range=(1,2)
+)
 X_train_vec = vectorizer.fit_transform(X_train)
-X_test_vec = vectorizer.transform(X_test)
+X_val_vec   = vectorizer.transform(X_val)
+X_test_vec  = vectorizer.transform(X_test)
 
 # Modelo: Regressão logística
-model = LogisticRegression(C = 100, class_weight= "balanced", penalty="l2", solver="liblinear",  max_iter=1000)
+model = LogisticRegression(
+    C=100, class_weight="balanced", penalty="l2", solver="liblinear", max_iter=1000
+)
 model.fit(X_train_vec, y_train)
 
-# Previsões
-y_pred = model.predict(X_test_vec)
-y_prob = model.predict_proba(X_test_vec)[:, 1]
+# Validação
+y_val_pred = model.predict(X_val_vec)
+y_val_prob = model.predict_proba(X_val_vec)[:, 1]
 
-# Métricas
-acc = accuracy_score(y_test, y_pred)
-f1 = f1_score(y_test, y_pred)
-roc = roc_auc_score(y_test, y_prob)
+val_acc = accuracy_score(y_val, y_val_pred)
+val_f1 = f1_score(y_val, y_val_pred)
+val_roc = roc_auc_score(y_val, y_val_prob)
+
+print(f"Validação: Accuracy={val_acc:.4f} | F1={val_f1:.4f} | ROC AUC={val_roc:.4f}")
 
 
-print(f"{acc, f1, roc}")
 
+
+y_test_pred = model.predict(X_test_vec)
+y_test_prob = model.predict_proba(X_test_vec)[:, 1]
+
+test_acc = accuracy_score(y_test, y_test_pred)
+test_f1 = f1_score(y_test, y_test_pred)
+test_roc = roc_auc_score(y_test, y_test_prob)
+
+print(f"Teste: Accuracy={test_acc:.4f} | F1={test_f1:.4f} | ROC AUC={test_roc:.4f}")
