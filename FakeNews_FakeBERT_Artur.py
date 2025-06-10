@@ -1,3 +1,11 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# # Fake News Detection com FakeBERT (BERT + CNN)
+
+# In[1]:
+
+
 import pandas as pd
 from sklearn.utils import shuffle
 import re
@@ -26,6 +34,9 @@ df = df.drop_duplicates(subset='text').reset_index(drop=True)
 df[['title', 'text', 'label']].head()
 
 
+# In[2]:
+
+
 # Dividir em treino, validação e teste
 from sklearn.model_selection import train_test_split
 
@@ -34,6 +45,9 @@ train_texts, temp_texts, train_labels, temp_labels = train_test_split(
 
 val_texts, test_texts, val_labels, test_labels = train_test_split(
     temp_texts, temp_labels, test_size=0.5, stratify=temp_labels, random_state=42)
+
+
+# In[3]:
 
 
 # Tokenização com BERT
@@ -46,13 +60,16 @@ def tokenize_data(texts):
         list(texts),
         padding=True,
         truncation=True,
-        max_length=128,
+        max_length=512,
         return_tensors='pt'
     )
 
 train_encodings = tokenize_data(train_texts)
 val_encodings = tokenize_data(val_texts)
 test_encodings = tokenize_data(test_texts)
+
+
+# In[4]:
 
 
 import torch
@@ -76,6 +93,10 @@ train_dataset = FakeNewsDataset(train_encodings, train_labels)
 val_dataset = FakeNewsDataset(val_encodings, val_labels)
 test_dataset = FakeNewsDataset(test_encodings, test_labels)
 
+
+# In[5]:
+
+
 import torch.nn as nn
 from transformers import BertModel
 
@@ -97,7 +118,10 @@ class FakeBERT_CNN(nn.Module):
         x = self.dropout(x)
         logits = self.fc(x).squeeze(1)  # (B)
         return logits
-    
+
+
+# In[6]:
+
 
 from torch.utils.data import DataLoader
 
@@ -116,7 +140,10 @@ optimizer = AdamW(model.parameters(), lr=2e-5)
 criterion = nn.BCEWithLogitsLoss()
 
 
-from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
+# In[17]:
+
+
+from sklearn.metrics import accuracy_score, f1_score, roc_auc_score, precision_score, recall_score, confusion_matrix 
 from tqdm import tqdm
 
 def train_one_epoch(model, loader, optimizer, criterion, device):
@@ -135,6 +162,9 @@ def train_one_epoch(model, loader, optimizer, criterion, device):
 
         total_loss += loss.item()
     return total_loss / len(loader)
+
+
+# In[18]:
 
 
 def evaluate(model, loader, criterion, device):
@@ -160,22 +190,47 @@ def evaluate(model, loader, criterion, device):
     acc = accuracy_score(true_labels, preds_bin)
     f1 = f1_score(true_labels, preds_bin)
     roc = roc_auc_score(true_labels, preds)
+    precision = precision_score(true_labels, preds_bin)
+    recall = recall_score(true_labels, preds_bin)
 
-    return total_loss / len(loader), acc, f1, roc
+    return total_loss / len(loader), acc, f1, roc, precision, recall, preds_bin, true_labels
+
+
+# In[ ]:
 
 
 EPOCHS = 3
 
 for epoch in range(EPOCHS):
-    print(f"\n🌟 Época {epoch+1}/{EPOCHS}")
+    print(f"\nÉpoca {epoch+1}/{EPOCHS}")
     train_loss = train_one_epoch(model, train_loader, optimizer, criterion, device)
-    val_loss, acc, f1, roc = evaluate(model, val_loader, criterion, device)
+    val_loss, acc, f1, roc, precision, recall, _, _ = evaluate(model, val_loader, criterion, device)
 
-    print(f"\n📈 Val Loss: {val_loss:.4f} | Accuracy: {acc:.4f} | F1: {f1:.4f} | ROC AUC: {roc:.4f}")
+    print(f"\n Val Loss: {val_loss:.4f} | Accuracy: {acc:.4f} | F1: {f1:.4f} | ROC AUC: {roc:.4f} | Precision: {precision:.4f} | Recall: {recall:.4f}")
+
+
+# In[21]:
 
 
 test_loader = DataLoader(test_dataset, batch_size=16)
 
-test_loss, test_acc, test_f1, test_roc = evaluate(model, test_loader, criterion, device)
+val_loss, acc, f1, roc, precision, recall, preds, labels = evaluate(
+    model, test_loader, criterion, device)
 
-print(f"🧪 Test Loss: {test_loss:.4f} | Accuracy: {test_acc:.4f} | F1: {test_f1:.4f} | ROC AUC: {test_roc:.4f}")
+print(f"\n Val Loss: {val_loss:.4f} | Accuracy: {acc:.4f} | F1: {f1:.4f} | ROC AUC: {roc:.4f} | Precision: {precision:.4f} | Recall: {recall:.4f}")
+
+
+# In[ ]:
+
+
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+cm = confusion_matrix(labels, preds)
+
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['Fake', 'Real'], yticklabels=['Fake', 'Real'])
+plt.xlabel('Predicted')
+plt.ylabel('Actual')
+plt.title('Confusion Matrix - BERT + CNN')
+plt.show()
+
